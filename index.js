@@ -2,10 +2,17 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
-// add
-let mongoose = require('mongoose');  
-const dbURI = process.env.MONGO_URI  
-mongoose.connect(dbURI, {useNewUrlParser: true, useUnifiedTopology: true});
+// add mongoose
+let mongoose = require("mongoose");
+/*const dbURI = process.env.MONGO_URI;
+mongoose.connect(dbURI, { 
+  useNewUrlParser: true, 
+  useUnifiedTopology: true }); */
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+});
+// add req.body Parser
 let bodyParser = require("body-parser");
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
@@ -27,8 +34,8 @@ app.get('/api/hello', function(req, res) {
 });
 
 
-
 // create the DB and schema
+// shorturl + original url DS
 const shorturlSchema = new mongoose.Schema({
   original_url: {
     type: String,
@@ -39,34 +46,38 @@ const shorturlSchema = new mongoose.Schema({
 	  required: true
 	}, 
   });
-const c_surl = mongoose.model('c_surl', shorturlSchema);
+const createShortUrl = mongoose.model('createShortUrl', shorturlSchema);
+// Counter DS
+const counterSchema = new mongoose.Schema({
+  name: {type: String, required: true, unique: true},
+  count: {type: Number, default:0},
+});
+const createCounter = mongoose.model('createCounter', counterSchema);
+
+// function of counting
+async function newCount(){
+  const result = await createCounter.findOneAndUpdate(
+    {name: 'short_url'}, // filter
+    {$inc: {count: 1}}, // update
+    {new: true, upsert: true} // options
+  );
+  return result.count;
+}
 
 // main function
-app.post('/api/shorturl', function(req, res){
+app.post('/api/shorturl', async function(req, res){
   const inputUrl = req.body.url;
-  let shortUrl;
 
-  const createShortUrl = (done) => {
-      shortUrl = new c_surl({
-      original_url: inputUrl,
-      short_url: Math.floor(Math.random()*10000)+1,
-    });
-      shortUrl.save(function(err, data){   
-      if (err) return console.error (err);
-      done(null, data); 
-    });
-  };
-
-  const findShortUrl = (shortUrl, done) => {
-    c_surl.findOne({short_url: shortUrl}, function(err, data){
+/*  const findShortUrl = (shortUrl, done) => {
+    createShortUrl.findOne({short_url: shortUrl}, function(err, data){
       if(err) return console.error(err);
       done(null, data);
     });
-  };
+  };*/
 
   // if the input is NUMBER, potential short url
-  if (!isNaN(inputUrl) && Number(inputUrl) > 0 && Number(inputUrl) <= 10000){
-    findShortUrl(Number(inputUrl), (err, data) => {
+  if (!isNaN(inputUrl) && Number(inputUrl) > 0){
+    return createShortUrl.findOne({short_url: Number(inputUrl)}, (err, data) => {
       if (err || !data ) {
         return res.json({ error: "No short URL found for the given input" });
       } else {
@@ -76,22 +87,50 @@ app.post('/api/shorturl', function(req, res){
   };
 
   // check if the input is valid url
-  let parsedUrl;
+  let parsedUrl
   try {
     parsedUrl = new URL(inputUrl);
-    createShortUrl(shortUrl), (err, data) =>{
-      if (err) return res.json({error: "Invalid URL"});  
-      res.json({ original_url : data.inputUrl, short_url : data.shortUrl});
-    };
   } catch (err) {
     res.json({error: "Invalid URL"});
   }
-}); 
+  // Create new shorturl and its counter
+  let shortUrl = await newCount(); // 得出 Count 數
+  const entry = new createShortUrl({   // 定義儲存資料
+    original_url: parsedUrl.href,
+    short_url: shortUrl,
+  });
 
+  const newEntry = await entry.save(function (err, data){  // 存入
+    if (err) return console.error (err);
+    done(null, data); 
+  });
+
+  res.json({original_url: parsedUrl, short_url: shortUrl});
+
+}); 
+// End of the app.post()
+
+
+/*
+    createShortUrl(shortUrl), (err, data) =>{
+      if (err) return res.json({error: "Invalid URL"});  
+      res.json({ original_url : data.inputUrl, short_url : data.shortUrl});
+
+  const createShortUrl = (done) => {
+      shortUrl = new createShortUrl({
+      original_url: inputUrl,
+      short_url: Math.floor(Math.random()*10000)+1,
+    });
+      shortUrl.save(function(err, data){   
+      if (err) return console.error (err);
+      done(null, data); 
+    });
+  };
+*/
   /*
   if (new URL(inputUrl)){
     const createShorturl = (done) => {
-      shortUrl = new c_surl({
+      shortUrl = new createShortUrl({
       original_url: inputUrl,
       short_url: Math.floor(Math.random()*10000)+1,
     })};
