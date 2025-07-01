@@ -19,6 +19,9 @@ app.use(bodyParser.json());
 
 // Basic Configuration
 const port = process.env.PORT || 3000;
+app.listen(port, function() {
+  console.log(`Listening on port ${port}`);
+});
 
 app.use(cors());
 
@@ -32,7 +35,6 @@ app.get('/', function(req, res) {
 app.get('/api/hello', function(req, res) {
   res.json({ greeting: 'hello API' });
 });
-
 
 // create the DB and schema
 // shorturl + original url DS
@@ -91,21 +93,16 @@ app.post('/api/shorturl', async function(req, res){
   try {
     parsedUrl = new URL(inputUrl);
   } catch (err) {
-    res.json({error: "Invalid URL"});
+    return res.json({error: "Invalid URL"});
   }
   // Create new shorturl and its counter
-  let shortUrl = await newCount(); // 得出 Count 數
+  const shortUrl = await newCount(); // 得出 Count 數
   const entry = new createShortUrl({   // 定義儲存資料
     original_url: parsedUrl.href,
     short_url: shortUrl,
   });
-
-  const newEntry = await entry.save(function (err, data){  // 存入
-    if (err) return console.error (err);
-    done(null, data); 
-  });
-
-  res.json({original_url: parsedUrl, short_url: shortUrl});
+  const newEntry = await entry.save(); // 存入，因為用 await 不用處理 if (err); data
+  res.json({original_url: parsedUrl.href, short_url: shortUrl});
 
 }); 
 // End of the app.post()
@@ -137,9 +134,3 @@ app.post('/api/shorturl', async function(req, res){
   
   }
   */
-
-
-
-app.listen(port, function() {
-  console.log(`Listening on port ${port}`);
-});
